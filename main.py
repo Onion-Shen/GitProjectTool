@@ -4,6 +4,7 @@
 import sys
 import os
 import subprocess
+import prettytable as pt
 from typing import List, Tuple, Dict
 
 GIT_PORJECT_PATH: str = None
@@ -60,14 +61,6 @@ class Commiter(object):
             if details[1] != "-":
                 self.sub += int(details[1])
 
-    def __str__(self):
-        pack = {}
-        pack.setdefault("name", self.name)
-        pack.setdefault("add", self.add)
-        pack.setdefault("sub", self.sub)
-        result = pack.__str__()
-        return result
-
 
 def get_all_commiter() -> List[Commiter]:
     cmd = "git log --pretty=format:\"%an\""
@@ -92,8 +85,11 @@ def print_commiters_info(commiters: List[Commiter]):
         return
 
     print("project commiters info:")
+    tb = pt.PrettyTable()
+    tb.field_names = ["name", "add", "sub"]
     for commiter in commiters:
-        print(commiter)
+        tb.add_row([commiter.name, commiter.add, commiter.sub])
+    print(tb)
 
 
 class ProjectFile(object):
@@ -130,8 +126,6 @@ def print_all_project_files_info(path: str):
     if not path or len(path) == 0:
         return
 
-    print("files in project:")
-
     info: Dict[str, int] = {}
     for dirpath, _, filenames in os.walk(path, followlinks=True):
         for filename in filenames:
@@ -146,9 +140,16 @@ def print_all_project_files_info(path: str):
             else:
                 info[projectfile.suffix] = projectfile.line
 
-    for suffix, line in info.items():
-        pack = {"suffix": suffix, "line": line}
-        print(pack)
+    if not info:
+        return
+
+    print("files in project:")
+    tb = pt.PrettyTable()
+    tb.field_names = ["suffix", "line"]
+    file_items = sorted(info.items(), key=lambda item: item[1], reverse=True)
+    for suffix, line in file_items:
+        tb.add_row([suffix, line])
+    print(tb)
 
 
 if __name__ == "__main__":
