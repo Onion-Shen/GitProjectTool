@@ -55,24 +55,21 @@ class Commiter(object):
 
         results = result.split("\n")
         for line in results:
-            details = line.split("\t")
-            if details[0] != "-":
-                self.add += int(details[0])
-            if details[1] != "-":
-                self.sub += int(details[1])
+            cmps = line.split("\t")
+            self.add += 0 if cmps[0] == "-" else int(cmps[0])
+            self.sub += 0 if cmps[1] == "-" else int(cmps[1])
 
 
 def get_all_commiter() -> List[Commiter]:
-    cmd = "git log --pretty=format:\"%an\""
+    cmd = "git log --pretty=format:\"%an\" | sort -u"
     success, result = subprocess.getstatusoutput(cmd)
     if success != 0:
         return None
 
     names = result.split("\n")
-    sets = set(names)
 
     commiters = []
-    for name in sets:
+    for name in names:
         commiter = Commiter(name)
         commiter.get_commit_detail()
         commiters.append(commiter)
@@ -80,11 +77,12 @@ def get_all_commiter() -> List[Commiter]:
     return sorted(commiters, key=lambda commiter: commiter.add, reverse=True)
 
 
-def print_commiters_info(commiters: List[Commiter]):
+def print_commiters_info():
+    commiters = get_all_commiter()
+
     if not commiters or len(commiters) == 0:
         return
 
-    print("project commiters info:")
     tb = pt.PrettyTable()
     tb.field_names = ["name", "add", "sub"]
     for commiter in commiters:
@@ -122,11 +120,10 @@ class ProjectFile(object):
         return count
 
 
-def print_all_project_files_info(path: str):
-    if not path or len(path) == 0:
-        return
-
+def print_all_project_files_info():
     info: Dict[str, int] = {}
+    path = "./"
+
     for dirpath, _, filenames in os.walk(path, followlinks=True):
         for filename in filenames:
             file_path = os.path.join(dirpath, filename)
@@ -135,15 +132,12 @@ def print_all_project_files_info(path: str):
             if projectfile.line == 0 or len(projectfile.suffix) == 0:
                 continue
 
-            if projectfile.suffix in info:
-                info[projectfile.suffix] += projectfile.line
-            else:
-                info[projectfile.suffix] = projectfile.line
+            info[projectfile.suffix] = info.get(
+                projectfile.suffix, 0) + projectfile.line
 
     if not info:
         return
 
-    print("files in project:")
     tb = pt.PrettyTable()
     tb.field_names = ["suffix", "line"]
     file_items = sorted(info.items(), key=lambda item: item[1], reverse=True)
@@ -159,6 +153,5 @@ if __name__ == "__main__":
 
     os.chdir(GIT_PORJECT_PATH)
 
-    commiters = get_all_commiter()
-    print_commiters_info(commiters)
-    print_all_project_files_info(GIT_PORJECT_PATH)
+    print_commiters_info()
+    print_all_project_files_info()
