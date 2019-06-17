@@ -5,7 +5,8 @@ import sys
 import os
 import subprocess
 import prettytable as pt
-from typing import List, Tuple, Dict
+from typing import List
+from multiprocessing import Pool
 
 GIT_PORJECT_PATH: str = None
 BEFORE: str = None
@@ -33,6 +34,7 @@ class Commiter(object):
         self.name = name
         self.add = 0
         self.sub = 0
+        self.get_commit_detail()
 
     def get_commit_detail(self):
         if not self.name or len(self.name) == 0:
@@ -60,19 +62,21 @@ class Commiter(object):
             self.sub += 0 if cmps[1] == "-" else int(cmps[1])
 
 
+def generate_commiter(name: str) -> Commiter:
+    return Commiter(name)
+
+
 def get_all_commiter() -> List[Commiter]:
-    cmd = "git log --pretty=format:\"%an\" | sort -u"
+    cmd = "git log --pretty=format:\"%an\""
     success, result = subprocess.getstatusoutput(cmd)
     if success != 0:
         return None
+    names = set(result.split("\n"))
 
-    names = result.split("\n")
-
-    commiters = []
-    for name in names:
-        commiter = Commiter(name)
-        commiter.get_commit_detail()
-        commiters.append(commiter)
+    pool = Pool(processes=10)
+    commiters = pool.map(generate_commiter, names)
+    pool.close()
+    pool.join()
 
     return sorted(commiters, key=lambda commiter: commiter.add, reverse=True)
 
@@ -90,62 +94,6 @@ def print_commiters_info():
     print(tb)
 
 
-class ProjectFile(object):
-    def __init__(self, path: str, name: str):
-        self.path = path
-        self.name = name
-        self.line = self.get_file_lines()
-        self.suffix = self.get_suffix()
-
-    def get_suffix(self) -> str:
-        cmps = self.name.split(".")
-        if len(cmps) == 2:
-            return cmps[1]
-        return ""
-
-    def get_file_lines(self) -> int:
-        count = 0
-        size = 8 * 1024 * 1024
-
-        with open(self.path, encoding="utf-8") as fp:
-            try:
-                while 1:
-                    buf = fp.read(size)
-                    if not buf:
-                        break
-                    count += buf.count("\n")
-            except:
-                pass
-
-        return count
-
-
-def print_all_project_files_info():
-    info: Dict[str, int] = {}
-    path = "./"
-
-    for dirpath, _, filenames in os.walk(path, followlinks=True):
-        for filename in filenames:
-            file_path = os.path.join(dirpath, filename)
-            projectfile = ProjectFile(file_path, filename)
-
-            if projectfile.line == 0 or len(projectfile.suffix) == 0:
-                continue
-
-            info[projectfile.suffix] = info.get(
-                projectfile.suffix, 0) + projectfile.line
-
-    if not info:
-        return
-
-    tb = pt.PrettyTable()
-    tb.field_names = ["suffix", "line"]
-    file_items = sorted(info.items(), key=lambda item: item[1], reverse=True)
-    for suffix, line in file_items:
-        tb.add_row([suffix, line])
-    print(tb)
-
-
 if __name__ == "__main__":
     parse_args()
     if not GIT_PORJECT_PATH or len(GIT_PORJECT_PATH) == 0:
@@ -154,4 +102,3 @@ if __name__ == "__main__":
     os.chdir(GIT_PORJECT_PATH)
 
     print_commiters_info()
-    print_all_project_files_info()
