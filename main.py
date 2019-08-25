@@ -58,8 +58,16 @@ class Commiter(object):
         results = result.split("\n")
         for line in results:
             cmps = line.split("\t")
-            self.add += 0 if cmps[0] == "-" else int(cmps[0])
-            self.sub += 0 if cmps[1] == "-" else int(cmps[1])
+            if len(cmps) != 3:
+                continue
+
+            addVal = cmps[0]
+            if addVal.isnumeric():
+                self.add += int(addVal)
+
+            subVal = cmps[1]
+            if subVal.isnumeric():
+                self.sub += int(subVal)
 
 
 def generate_commiter(name: str) -> Commiter:
