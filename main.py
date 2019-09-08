@@ -1,55 +1,38 @@
 #!/usr/local/bin python3
 # -*- coding: utf-8 -*-
 
-import sys
 import os
+import argparse
 import subprocess
 import prettytable as pt
 from typing import List
 from multiprocessing import Pool
 
-GIT_PORJECT_PATH: str = None
-BEFORE: str = None
-AFTER: str = None
-
-
-def parse_args():
-    argv = sys.argv
-    global GIT_PORJECT_PATH
-    GIT_PORJECT_PATH = argv[1]
-
-    global BEFORE
-    global AFTER
-    for arg in argv[2:]:
-        if arg.startswith("before"):
-            cmps = arg.split("=")
-            BEFORE = cmps[1]
-        elif arg.startswith("after"):
-            cmps = arg.split("=")
-            AFTER = cmps[1]
+ARGS: argparse.Namespace = None
 
 
 class Commiter(object):
-    def __init__(self, name: str):
+    def __init__(self, name: str, email: str):
         self.name = name
+        self.email = email
         self.add = 0
         self.sub = 0
-        self.get_commit_detail()
 
-    def get_commit_detail(self):
+    def amountOfCode(self):
         if not self.name or len(self.name) == 0:
             return
 
         cmd = "git log --author=\"%s\" --pretty=tformat: --numstat" % (
             self.name)
 
-        global BEFORE
-        if BEFORE and len(BEFORE):
-            cmd += " --before=\"%s\"" % (BEFORE)
+        global ARGS
+        before = ARGS.before
+        if before and len(before) > 0:
+            cmd += " --before=\"%s\"" % (before)
 
-        global AFTER
-        if AFTER and len(AFTER):
-            cmd += " --after=\"%s\"" % (AFTER)
+        after = ARGS.after
+        if after and len(after) > 0:
+            cmd += " --after=\"%s\"" % (after)
 
         success, result = subprocess.getstatusoutput(cmd)
         if success != 0 or result == None or len(result) == 0:
@@ -61,52 +44,83 @@ class Commiter(object):
             if len(cmps) != 3:
                 continue
 
-            addVal = cmps[0]
+            addVal, subVal = cmps[0], cmps[1]
             if addVal.isnumeric():
                 self.add += int(addVal)
-
-            subVal = cmps[1]
             if subVal.isnumeric():
                 self.sub += int(subVal)
 
 
-def generate_commiter(name: str) -> Commiter:
-    return Commiter(name)
+def parseArgsFromShell():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("gitProjPath")
+    parser.add_argument("-before")
+    parser.add_argument("-after")
+
+    global ARGS
+    ARGS = parser.parse_args()
 
 
-def get_all_commiter() -> List[Commiter]:
-    cmd = "git log --pretty=format:\"%an\""
+def changeToProjDir():
+    global ARGS
+    os.chdir(ARGS.gitProjPath)
+
+
+def getAllCommitersOfProj() -> List[Commiter]:
+    cmd = "git log --pretty=format:\"%an %ae\""
     success, result = subprocess.getstatusoutput(cmd)
     if success != 0:
         return None
-    names = set(result.split("\n"))
 
-    pool = Pool(processes=10)
-    commiters = pool.map(generate_commiter, names)
+    commiters = []
+    infos = set(result.split("\n"))
+    for info in infos:
+        if not info or len(info) == 0:
+            continue
+
+        cmps = info.split(" ")
+        emailIdx = len(cmps) - 1
+        email = cmps[emailIdx]
+        if not email or len(email) == 0:
+            continue
+
+        name = " ".join(cmps[0:emailIdx])
+        commiter = Commiter(name, email)
+        commiters.append(commiter)
+
+    return commiters
+
+
+def getAmountOfCode(commiter: Commiter) -> Commiter:
+    commiter.amountOfCode()
+    return commiter
+
+
+def printAmountOfCodeOfCommiters(commiters: List[Commiter]):
+    if commiters is None or len(commiters) == 0:
+        return
+
+    pool = Pool()
+    results = pool.map(getAmountOfCode, commiters)
     pool.close()
     pool.join()
 
-    return sorted(commiters, key=lambda commiter: commiter.add, reverse=True)
-
-
-def print_commiters_info():
-    commiters = get_all_commiter()
-
-    if not commiters or len(commiters) == 0:
-        return
+    sortedResult = sorted(
+        results, key=lambda commiter: commiter.add, reverse=True)
 
     tb = pt.PrettyTable()
-    tb.field_names = ["name", "add", "sub"]
-    for commiter in commiters:
-        tb.add_row([commiter.name, commiter.add, commiter.sub])
+    tb.field_names = ["name", "email", "add", "sub"]
+    for commiter in sortedResult:
+        tb.add_row([commiter.name, commiter.email, commiter.add, commiter.sub])
     print(tb)
 
 
+def main():
+    parseArgsFromShell()
+    changeToProjDir()
+    commiters = getAllCommitersOfProj()
+    printAmountOfCodeOfCommiters(commiters)
+
+
 if __name__ == "__main__":
-    parse_args()
-    if not GIT_PORJECT_PATH or len(GIT_PORJECT_PATH) == 0:
-        sys.exit(1)
-
-    os.chdir(GIT_PORJECT_PATH)
-
-    print_commiters_info()
+    main()
