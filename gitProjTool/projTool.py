@@ -18,6 +18,9 @@ class Commiter(object):
         self.add = 0
         self.sub = 0
 
+        global ARGS
+        self.args = ARGS
+
     def amountOfCode(self):
         if not self.name or len(self.name) == 0:
             return
@@ -25,14 +28,15 @@ class Commiter(object):
         cmd = "git log --author=\"%s\" --pretty=tformat: --numstat" % (
             self.name)
 
-        global ARGS
-        before = ARGS.before
-        if before and len(before) > 0:
-            cmd += " --before=\"%s\"" % (before)
+        args = self.args
+        if args is not None:
+            before = args.before
+            if before and len(before) > 0:
+                cmd += " --before=\"%s\"" % (before)
 
-        after = ARGS.after
-        if after and len(after) > 0:
-            cmd += " --after=\"%s\"" % (after)
+            after = args.after
+            if after and len(after) > 0:
+                cmd += " --after=\"%s\"" % (after)
 
         success, result = subprocess.getstatusoutput(cmd)
         if success != 0 or result == None or len(result) == 0:
